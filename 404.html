@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <link rel="index.html">
+</head>
+<html>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>الصفحة غير موجودة - 404</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: #0f172a;
+            color: #f8fafc;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            text-align: center;
+            max-width: 600px;
+            padding: 20px;
+            z-index: 10;
+        }
+
+        h1 {
+            font-size: 6rem;
+            font-weight: 900;
+            color: #38bdf8;
+            line-height: 1;
+            margin-bottom: 10px;
+            text-shadow: 0 0 20px rgba(56, 189, 248, 0.3);
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-bottom: 15px;
+            color: #cbd5e1;
+        }
+
+        p {
+            color: #94a3b8;
+            margin-bottom: 25px;
+            font-size: 1rem;
+        }
+
+        .btn {
+            display: inline-block;
+            background-color: #38bdf8;
+            color: #0f172a;
+            padding: 10px 20px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+
+        .btn:hover {
+            background-color: #0ea5e9;
+            transform: scale(1.05);
+            box-shadow: 0 0 15px rgba(56, 189, 248, 0.4);
+        }
+
+        /* منطقة اللعبة */
+        .game-wrapper {
+            margin-top: 20px;
+            position: relative;
+        }
+
+        #gameCanvas {
+            background-color: #1e293b;
+            border: 3px solid #334155;
+            border-radius: 12px;
+            display: block;
+            max-width: 100%;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        .game-info {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            max-width: 500px;
+            margin: 10px auto;
+            font-size: 1.1rem;
+            color: #e2e8f0;
+        }
+
+        .instructions {
+            margin-top: 10px;
+            font-size: 0.9rem;
+            color: #64748b;
+        }
+
+        /* واجهة الخسارة */
+        .game-over-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 23, 42, 0.85);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-radius: 12px;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .game-over-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .game-over-overlay h3 {
+            font-size: 2rem;
+            color: #ef4444;
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>404</h1>
+        <h2>أوبس! الصفحة التي تبحث عنها غير موجودة.</h2>
+        <p>يبدو أنك ضللت الطريق.. ما رأيك ببعض المرح حتى تجد طريق العودة؟</p>
+        
+        <a href="/" class="btn">العودة للرئيسية</a>
+
+        <!-- قسم اللعبة -->
+        <div class="game-wrapper">
+            <div class="game-info">
+                <div>النقاط: <span id="score">0</span></div>
+                <div>أعلى نتيجة: <span id="highScore">0</span></div>
+            </div>
+            
+            <canvas id="gameCanvas" width="500" height="200"></canvas>
+            
+            <div class="instructions">اضغط على زر **المسافة (Space)** أو **اضغط على الشاشة** للقفز وتفادي العقبات الحمر!</div>
+
+            <!-- شاشة الخسارة -->
+            <div class="game-over-overlay" id="gameOverScreen">
+                <h3>انتهت اللعبة!</h3>
+                <button class="btn" onclick="resetGame()">العب مجدداً</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreEl = document.getElementById('score');
+        const highScoreEl = document.getElementById('highScore');
+        const gameOverScreen = document.getElementById('gameOverScreen');
+
+        // إعدادات اللعبة
+        let isPlaying = true;
+        let score = 0;
+        let highScore = localStorage.getItem('404_highScore') || 0;
+        highScoreEl.innerText = highScore;
+
+        // اللاعب (المربع الأزرق)
+        const player = {
+            x: 50,
+            y: 140,
+            width: 30,
+            height: 30,
+            color: '#38bdf8',
+            gravity: 0.6,
+            lift: -12,
+            velocity: 0,
+            isJumping: false
+        };
+
+        // العقبات (المربعات الحمراء)
+        let obstacles = [];
+        let obstacleSpeed = 5;
+        let spawnTimer = 0;
+
+        // التحكم بالقفز
+        function jump() {
+            if (!player.isJumping && isPlaying) {
+                player.velocity = player.lift;
+                player.isJumping = true;
+            }
+        }
+
+        // الاستماع للأزرار واللمس
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault(); // منع نزول الصفحة عند الضغط على المسافة
+                jump();
+            }
+        });
+
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            jump();
+        });
+
+        // إنشاء عقبة جديدة
+        function spawnObstacle() {
+            let height = Math.random() * (40 - 20) + 20; // ارتفاع عشوائي
+            obstacles.push({
+                x: canvas.width,
+                y: canvas.height - height - 30, // 30 هو مستوى الأرض الافتراضي
+                width: 20,
+                height: height,
+                color: '#ef4444'
+            });
+        }
+
+        // تحديث حركة العناصر
+        function update() {
+            if (!isPlaying) return;
+
+            // جاذبية اللاعب
+            player.velocity += player.gravity;
+            player.y += player.velocity;
+
+            // تحديد مستوى الأرض (منع اللاعب من السقوط تحت الأرض)
+            if (player.y > 140) {
+                player.y = 140;
+                player.velocity = 0;
+                player.isJumping = false;
+            }
+
+            // إدارة العقبات
+            spawnTimer++;
+            if (spawnTimer > Math.random() * (90 - 60) + 60) { // توقيت عشوائي لظهور العقبات
+                spawnObstacle();
+                spawnTimer = 0;
+            }
+
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                obstacles[i].x -= obstacleSpeed;
+
+                // زيادة الصعوبة تدريجياً مع زيادة النقاط
+                if (score > 0 && score % 10 === 0) {
+                    obstacleSpeed += 0.005;
+                }
+
+                // فحص التصادم
+                if (
+                    player.x < obstacles[i].x + obstacles[i].width &&
+                    player.x + player.width > obstacles[i].x &&
+                    player.y < obstacles[i].y + obstacles[i].height &&
+                    player.y + player.height > obstacles[i].y
+                ) {
+                    gameOver();
+                }
+
+                // حذف العقبة إذا خرجت من الشاشة وزيادة النقاط
+                if (obstacles[i].x + obstacles[i].width < 0) {
+                    obstacles.splice(i, 1);
+                    score++;
+                    scoreEl.innerText = score;
+                }
+            }
+        }
+
+        // رسم العناصر على الشاشة
+        function draw() {
+            // تنظيف الشاشة
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // رسم خط الأرض
+            ctx.fillStyle = '#475569';
+            ctx.fillRect(0, 170, canvas.width, 30);
+
+            // رسم اللاعب
+            ctx.fillStyle = player.color;
+            ctx.beginPath();
+            ctx.roundRect(player.x, player.y, player.width, player.height, 6); // زوايا منحنية مظهرها أجمل
+            ctx.fill();
+
+            // رسم العقبات
+            obstacles.forEach(obs => {
+                ctx.fillStyle = obs.color;
+                ctx.beginPath();
+                ctx.roundRect(obs.x, obs.y, obs.width, obs.height, 4);
+                ctx.fill();
+            });
+        }
+
+        // حلقة اللعبة الأساسية
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // انتهاء اللعبة
+        function gameOver() {
+            isPlaying = false;
+            gameOverScreen.classList.add('active');
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('404_highScore', highScore);
+                highScoreEl.innerText = highScore;
+            }
+        }
+
+        // إعادة تشغيل اللعبة
+        function resetGame() {
+            obstacles = [];
+            score = 0;
+            obstacleSpeed = 5;
+            scoreEl.innerText = score;
+            player.y = 140;
+            player.velocity = 0;
+            player.isJumping = false;
+            gameOverScreen.classList.remove('active');
+            isPlaying = true;
+        }
+
+        // بدء تشغيل اللعبة عند تحميل الصفحة
+        gameLoop();
+    </script>
+</body>
+</html>
